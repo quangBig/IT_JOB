@@ -1,0 +1,17 @@
+@startuml
+Client -> Pipe: Send request
+Pipe -> Pipe: Validate data
+Pipe -> Controller: Send data
+Controller -> Service: Send data
+Service --> DB: Find exist user by email
+DB --> Service: return user
+alt user not found case 
+  Service -> DB: Save data user and applicant
+  DB --> Service: Save ok
+  Service --> Controller: Oke
+  Controller --> Client: Return oke
+else user exist case
+  Service --> Controller: Throw error exists users
+  Controller --> Client: Return error
+end  
+@enduml
