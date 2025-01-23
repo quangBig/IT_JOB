@@ -7,6 +7,8 @@ import { LOGIN_TYPE, ROLE } from 'src/commons/enums/user.enum';
 import { ApplicantRepository } from 'src/databases/repositories/applicant.repository';
 import { LoginDto } from './dtos/login.dto';
 import { ConfigService } from '@nestjs/config';
+import { RefreshTokenDto } from './dtos/refresh-token.dto';
+import { User } from 'src/databases/entities/user.entity';
 @Injectable()
 export class AuthService {
     constructor(
@@ -56,12 +58,53 @@ export class AuthService {
         if (!isPasswordValid) {
             throw new HttpException('Incorrect email adress or password', HttpStatus.UNAUTHORIZED);
         }
-        const payload = {
-            id: userRecord.id,
-            username: userRecord.username,
-            loginType: userRecord.loginType,
-            role: userRecord.role,
-        };
+        const payload = this.getPayload(userRecord)
+        const accessToken = await this.signTokens(payload)
+
+        return {
+            message: "Login created successfully",
+            result: {
+                accessToken,
+            }
+        }
+    }
+    async refresh(body: RefreshTokenDto) {
+        const { refreshToken } = body;
+        const paypoadRefreshToken = await this.jwtService.verify(refreshToken, {
+            secret: this.ConfigService.get('jwtAuth').jwtfreshTokenSecret,
+        });
+
+        // render token new 
+        const userRecord = await this.userRepository.findOneBy({ id: paypoadRefreshToken.id })
+        if (!userRecord) {
+            throw new HttpException('User not found', HttpStatus.UNAUTHORIZED);
+        }
+        const payload = this.getPayload(userRecord)
+        const accessToken = await this.signTokens(payload)
+        const newRefreshToken = await this.signTokens(payload)
+
+        console.log(paypoadRefreshToken);
+        return {
+            message: "Refresh token created successfully",
+            result: {
+                accessToken,
+                newRefreshToken
+            }
+        }
+    }
+    getPayload(user: User) {
+        return {
+            id: user.id,
+            username: user.username,
+            loginType: user.loginType,
+            role: user.role
+        }
+    }
+    async signTokens(payload) {
+
+        const paypoadRefreshToken = {
+            id: payload.id
+        }
         // return {
         //     access_token: await this.jwtService.signAsync(payload),
         // };
@@ -69,12 +112,13 @@ export class AuthService {
             secret: this.ConfigService.get('jwtAuth').jwtTokenSecret,
             expiresIn: '15m',
         })
+        const refreshToken = await this.jwtService.signAsync(paypoadRefreshToken, {
+            secret: this.ConfigService.get('jwtAuth').jwtfreshTokenSecret,
+            expiresIn: '7d',
+        })
         return {
-            message: "Login created successfully",
-            result: {
-                accessToken
-            }
+            accessToken,
+            refreshToken
         }
     }
-
 }
