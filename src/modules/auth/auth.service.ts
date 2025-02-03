@@ -9,6 +9,8 @@ import { LoginDto } from './dtos/login.dto';
 import { ConfigService } from '@nestjs/config';
 import { RefreshTokenDto } from './dtos/refresh-token.dto';
 import { User } from 'src/databases/entities/user.entity';
+import { LoginGoggleDto } from './dtos/login-gg.dto';
+import { OAuth2Client } from 'google-auth-library';
 @Injectable()
 export class AuthService {
     constructor(
@@ -121,4 +123,51 @@ export class AuthService {
             refreshToken
         }
     }
+    async loginGogle(body: LoginGoggleDto) {
+        const { token } = body;
+
+        const ggClientId = this.ConfigService.get('google').clientId;
+        const ggClientSecret = this.ConfigService.get('google').clientSecret;
+
+        const oAuth2Clinet = new OAuth2Client(ggClientId, ggClientSecret)
+
+        const ggLoginTicket = await oAuth2Clinet.verifyIdToken({
+            idToken: token,
+            audience: ggClientId
+        })
+        const { email_verified, email, name } = ggLoginTicket.getPayload();
+        if (!email_verified) {
+            throw new HttpException("Email not verified", HttpStatus.UNAUTHORIZED)
+        }
+        const userRecord = await this.userRepository.findOneBy({
+            email: email,
+            // loginType: LOGIN_TYPE.GOOGLE
+        })
+        //Check if email was used to register user
+        if (userRecord && userRecord.loginType === LOGIN_TYPE.GOOGLE) {
+            throw new HttpException("Email was used to register ", HttpStatus.BAD_REQUEST)
+        }
+        // Nếu không tồn tại user sẽ login với gg mới
+        if (!userRecord) {
+            const newUser = await this.userRepository.save({
+                email,
+                username: name,
+                loginType: LOGIN_TYPE.GOOGLE,
+            })
+
+            await this.applicantRepository.save({
+                userId: newUser.id
+            })
+        }
+        const payload = this.getPayload(userRecord)
+        const { accessToken, refreshToken } = await this.signTokens(payload)
+        return {
+            message: "Login created successfully",
+            result: {
+                accessToken,
+                refreshToken
+            }
+        }
+    }
+
 }
