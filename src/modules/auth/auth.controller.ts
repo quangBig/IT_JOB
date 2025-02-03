@@ -5,6 +5,7 @@ import { LoginDto } from './dtos/login.dto';
 import { AuthGuard } from './auth.guard';
 import { RefreshTokenDto } from './dtos/refresh-token.dto';
 import { Public } from 'src/commons/decorators/public.decorators';
+import { LoginGoggleDto } from './dtos/login-gg.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -31,5 +32,10 @@ export class AuthController {
     @Post('refresh-token')
     refresh(@Body() body: RefreshTokenDto) {
         return this.authService.refresh(body)
+    }
+    @Public()
+    @Post('login-google')
+    loginGogle(@Body() body: LoginGoggleDto) {
+        return this.authService.loginGogle(body)
     }
 }
